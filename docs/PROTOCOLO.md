@@ -18,6 +18,7 @@ navegador o con `curl`.
 | `/automatico` | Modo evasión de obstáculos | `modo automatico` |
 | `/manual` | Modo manual | `modo manual` |
 | `/stop` o `/reposo` | Frena todo, cancela los G-code y vuelve a manual | `stop` |
+| `/origen` | La posición actual pasa a ser (0, 0) mirando hacia adelante (borra el mapa de la app). No cambia el modo. | `origen` |
 | `/vel?v=10..100` | Velocidad en % para **todos** los modos (línea, obstáculos, manual). Por defecto 60. Los G-code usan su propio `F`. | `velocidad 60` |
 
 ## Control manual (pasan solos a modo manual)
@@ -48,11 +49,13 @@ Respuesta: `movimientos: <lista>`. Un comando desconocido deja `E=ERROR_<cmd>` e
 ## Estado / telemetría
 `/estado` responde:
 ```
-TEL M=MANUAL F=234 L=1200 R=2000 IL=50 IR=920 VL=120 VR=118 PL=140 PR=135 Q=0 S=60 E=DONE_G1
+TEL M=MANUAL X=1250 Y=-340 H=900 F=234 L=1200 R=2000 IL=50 IR=920 VL=120 VR=118 PL=140 PR=135 Q=0 S=60 E=DONE_G1
 ```
 | Clave | Significado |
 |---|---|
 | `M` | modo (`LINE` `AVOID` `MANUAL`) |
+| `X` `Y` | posición por odometría en **mm**: X hacia adelante del punto de partida, Y hacia la izquierda |
+| `H` | rumbo en **décimas de grado** (+ = giró a la izquierda) |
 | `F` `L` `R` | ultrasonido frontal / izq / der en **mm** (2000 = nada en rango) |
 | `IL` `IR` | IR: 0 = blanco … 1000 = negro |
 | `VL` `VR` | velocidad medida de cada rueda, mm/s |
@@ -62,7 +65,7 @@ TEL M=MANUAL F=234 L=1200 R=2000 IL=50 IR=920 VL=120 VR=118 PL=140 PR=135 Q=0 S=
 | `E` | último evento: `DONE_G1`, `TIMEOUT_G5`, `ERROR_<cmd>` |
 
 ## Seguridad
-La app pide `/estado` cada 400 ms. Una vez que llegó el primer `/estado`, si el robot
+La app pide `/estado` cada 250 ms. Una vez que llegó el primer `/estado`, si el robot
 pasa **2 s** sin recibir ningún pedido, frena. El panel del simulador
 no usa `/estado`, así que con él esta protección no se activa.
 
@@ -70,3 +73,7 @@ no usa `/estado`, así que con él esta protección no se activa.
 El backend del simulador guarda sólo el **último** pedido, y el simulador lo lee cada 100 ms.
 Por eso los G-code de varios pasos van en un solo pedido (`/g/.../...`), y la app no pide
 `/estado` justo después de mandar una orden.
+
+## Animaciones (emoticonos)
+La app no necesita rutas nuevas: cada animación es una lista de G-code
+(`RobotProtocol.EMOTES`), por ejemplo *Feliz* = `/g/G5A25F400/G5A-50F400/G5A50F400/G5A-25F400`.

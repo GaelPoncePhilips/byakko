@@ -23,7 +23,12 @@ data class Telemetry(
     val queue: Int,
     val speedPct: Int,                          // escala de velocidad actual
     val event: String,                          // DONE_G1, ABORT, TIMEOUT_G5...
+    val xMm: Float = 0f, val yMm: Float = 0f,   // posición por odometría (x adelante, y izquierda)
+    val headingDeg: Float = 0f,                 // rumbo, + = giró a la izquierda
 )
+
+/** Animación del auto: un emoji y la lista de movimientos G-code que la hacen. */
+data class Emote(val emoji: String, val name: String, val moves: List<String>)
 
 /** Rutas HTTP del robot (ver docs/PROTOCOLO.md). */
 object RobotProtocol {
@@ -33,6 +38,20 @@ object RobotProtocol {
 
     const val STATUS = "/estado"
     const val STOP = "/stop"
+    const val ORIGIN = "/origen"
+
+    /** Animaciones del menú de emoticonos (se mandan como G-code, el firmware ya los entiende). */
+    val EMOTES = listOf(
+        Emote("😊", "Feliz", listOf("G5A25F400", "G5A-50F400", "G5A50F400", "G5A-25F400")),
+        Emote("😵", "Mareado", listOf("G5A720F350")),
+        Emote("🙅", "No", listOf("G5A15F450", "G5A-30F450", "G5A30F450", "G5A-30F450", "G5A15F450")),
+        Emote("🙆", "Sí", listOf("G1D30F350", "G1D-30F350", "G1D30F350", "G1D-30F350")),
+        Emote("😱", "Susto", listOf("G1D-150F400", "G4P400", "G5A20F300", "G5A-40F300", "G5A20F300")),
+        Emote("💃", "Baile", listOf("G3R80A90F300", "G2R80A90F300", "G5A360F400", "G3R80A90F300", "G2R80A90F300")),
+        Emote("👋", "Saludo", listOf("G5A45F300", "G4P200", "G5A-90F300", "G4P200", "G5A45F300")),
+        Emote("😴", "Dormir", listOf("G1D40F80", "G4P800", "G1D-20F60", "G4P1200")),
+        Emote("🐯", "Ataque", listOf("G1D-60F200", "G4P300", "G1D200F400")),
+    )
 
     /** Escala de velocidad para todos los modos, 10..100 %. */
     fun speed(pct: Int) = "/vel?v=${pct.coerceIn(10, 100)}"
@@ -61,7 +80,9 @@ object RobotProtocol {
             val i = it.indexOf('=')
             if (i > 0) it.substring(0, i) to it.substring(i + 1) else null
         }.toMap()
-        fun int(k: String) = kv[k]?.toIntOrNull() ?: 0
+        // El simulador a veces manda decimales ("186.77") donde el robot manda enteros
+        fun num(k: String) = kv[k]?.toFloatOrNull() ?: 0f
+        fun int(k: String) = num(k).toInt()
         return Telemetry(
             mode = RobotMode.fromWire(kv["M"] ?: "IDLE"),
             frontMm = int("F"), leftMm = int("L"), rightMm = int("R"),
@@ -71,6 +92,8 @@ object RobotProtocol {
             queue = int("Q"),
             speedPct = int("S"),
             event = kv["E"] ?: "-",
+            xMm = num("X"), yMm = num("Y"),
+            headingDeg = num("H") / 10f,
         )
     }
 }

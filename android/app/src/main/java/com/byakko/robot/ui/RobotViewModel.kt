@@ -10,6 +10,9 @@ import com.byakko.robot.data.RobotMode
 import com.byakko.robot.data.RobotProtocol
 import com.byakko.robot.data.Telemetry
 import com.byakko.robot.data.WifiConnector
+import com.byakko.robot.data.Emote
+import com.byakko.robot.ui.map.TrackRecorder
+import com.byakko.robot.ui.map.TrackState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +38,10 @@ class RobotViewModel(app: Application) : AndroidViewModel(app) {
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
 
+    /** Recorrido y paredes (aparte de [ui] porque cambia seguido y puede ser grande). */
+    private val _track = MutableStateFlow(TrackState())
+    val track: StateFlow<TrackState> = _track
+
     @Volatile private var joyX = 0f
     @Volatile private var joyY = 0f
     private var lastJoy = ""
@@ -54,6 +61,7 @@ class RobotViewModel(app: Application) : AndroidViewModel(app) {
                 val previous = _ui.value.telemetry?.event
                 if (t.event != "-" && t.event != previous) log(t.event)
                 _ui.update { it.copy(telemetry = t, mode = t.mode) }
+                _track.update { TrackRecorder.add(it, t) }
             }
         }
         // Joystick: manda sólo cuando cambia, a lo sumo cada 100 ms.
@@ -135,6 +143,17 @@ class RobotViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun joystick(x: Float, y: Float) { joyX = x; joyY = y }
+
+    /** Borra el mapa y pone el auto en (0, 0). */
+    fun clearTrack() {
+        client.send(RobotProtocol.ORIGIN)
+        _track.value = TrackState()
+    }
+
+    fun playEmote(e: Emote) {
+        client.send(RobotProtocol.gcode(e.moves))
+        log("${e.emoji} ${e.name}")
+    }
 
     fun setSpeed(pct: Int) {
         _ui.update { it.copy(speedPct = pct) }

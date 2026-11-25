@@ -122,6 +122,12 @@ float vel_deseada_izq = 0;
 float vel_deseada_der = 0;
 float vel_real_izq = 0;
 float vel_real_der = 0;
+
+// Posicion estimada con los encoders (odometria). La app la usa para dibujar el recorrido.
+// x hacia adelante al arrancar, y hacia la izquierda, angulo en radianes (+ = izquierda)
+float pose_x = 0;
+float pose_y = 0;
+float pose_ang = 0;
 float suma_error_izq = 0;
 float suma_error_der = 0;
 int pwm_izq = 0;
@@ -345,6 +351,15 @@ void controlVelocidad() {
   ticks_izq_antes = ahora_izq;
   ticks_der_antes = ahora_der;
 
+  // Odometria: cuanto avanzo cada rueda -> donde esta y para donde mira
+  float avance_izq = vel_real_izq * dt;
+  float avance_der = vel_real_der * dt;
+  float avance = (avance_izq + avance_der) / 2;
+  float giro = (avance_der - avance_izq) / ANCHO_ROBOT;
+  pose_x = pose_x + avance * cos(pose_ang + giro / 2);
+  pose_y = pose_y + avance * sin(pose_ang + giro / 2);
+  pose_ang = pose_ang + giro;
+
   float error_izq = vel_deseada_izq - vel_real_izq;
   float error_der = vel_deseada_der - vel_real_der;
   suma_error_izq = constrain(suma_error_izq + error_izq * dt, -150, 150);
@@ -550,8 +565,29 @@ void manual() {
   if (moviendo) {
     actualizarMovimiento();
   } else {
-    mover(joy_y * 300, joy_x * 200);
+    joystickComoAuto();
   }
+}
+
+// Joystick tipo auto: cuanto se inclina = velocidad, para donde = hacia donde dobla.
+// Al costado avanza doblando (no rota en el lugar). Hacia abajo va marcha atras,
+// y la cola va hacia el lado del joystick.
+void joystickComoAuto() {
+  float fuerza = sqrt(joy_x * joy_x + joy_y * joy_y);
+  if (fuerza < 0.12) {          // zona muerta: el dedo apoyado en el centro no lo mueve
+    mover(0, 0);
+    return;
+  }
+  fuerza = min(fuerza, 1.0);
+  float doblar = joy_x / fuerza;                // -1 todo a la izquierda .. 1 todo a la derecha
+  int sentido = 1;
+  if (joy_y < -0.35 * fuerza) {                 // la parte de abajo del joystick = marcha atras
+    sentido = -1;
+  }
+  float avance = sentido * fuerza * 300;
+  // La rueda de adentro como mucho se frena (0.8): dobla cerrado pero sigue avanzando
+  float giro = doblar * abs(avance) * 0.8 * sentido;
+  mover(avance, giro);
 }
 
 void cambiarModo(int nuevo) {
@@ -735,6 +771,8 @@ String nombreModo() {
 
 String estado() {
   String t = "TEL M=" + nombreModo();
+  t = t + " X=" + String((int)pose_x) + " Y=" + String((int)pose_y);   // mm
+  t = t + " H=" + String((int)(pose_ang * 1800 / 3.14159));          // decimas de grado
   t = t + " F=" + String(sensor_frontal * 10);    // en mm
   t = t + " L=" + String(sensor_izquierdo * 10);
   t = t + " R=" + String(sensor_derecho * 10);
@@ -828,6 +866,7 @@ String procesarPedido(String request) {
   bool es_ajuste = request.indexOf("/vel?") != -1 || request.indexOf("/control?") != -1;
   es_ajuste = es_ajuste || request.indexOf("/config?") != -1 || request.indexOf("/ping") != -1;
   es_ajuste = es_ajuste || request.indexOf("/evasion") != -1 || request.indexOf("/linea?") != -1;
+  es_ajuste = es_ajuste || request.indexOf("/origen") != -1;
   if (request.indexOf("/pwm?") == -1 && !es_ajuste) {
     prueba_motores = false;
   }
@@ -918,6 +957,13 @@ String procesarPedido(String request) {
   else if (request.indexOf("/stop") != -1 || request.indexOf("/reposo") != -1) {
     cambiarModo(MANUAL);
     return "stop";
+  }
+  else if (request.indexOf("/origen") != -1) {
+    // La posicion actual pasa a ser (0, 0) mirando hacia adelante
+    pose_x = 0;
+    pose_y = 0;
+    pose_ang = 0;
+    return "origen";
   }
   else if (request.indexOf("/g/") != -1) {
     // Lista de movimientos: /g/G1D300/G5A90
@@ -1080,7 +1126,7 @@ void loop() {
       automatico();
     } else if (modo == SIGUELINEA) {
       // se corre arriba, cada 10 ms
-    } else {Su
+    } else {
       manual();
     }
     luces();

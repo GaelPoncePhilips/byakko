@@ -88,7 +88,7 @@ class RobotClient(private val scope: CoroutineScope) {
                             if (failures >= 4) _state.value = ConnState.Failed(e.message ?: "Sin respuesta del robot")
                         }
                 }
-                delay(400)
+                delay(250)   // 4 veces por segundo: el recorrido se ve suave
             }
         }
         jobs = listOf(sender, poller)
