@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Byakko · Pruebas</title>
+<style>
+  :root {
+    --bg: #0b0d10; --card: #14171c; --hi: #1c2027; --line: #262b33;
+    --ink: #e8eef6; --muted: #7d8794; --accent: #7dd3fc; --ok: #4ade80;
+    --warn: #fbbf24; --bad: #ff5c5c; --violet: #c4b5fd;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  h1 { font-size: 18px; letter-spacing: 5px; margin: 0 8px 0 0; font-weight: 600; }
+  h2 { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; padding: 14px 18px 40px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .wide { grid-column: 1 / -1; }
+  input[type=text], input[type=number], select { background: var(--hi); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 7px 10px; font: inherit; }
+  button { background: var(--hi); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: inherit; cursor: pointer; user-select: none; }
+  button:hover { border-color: var(--accent); }
+  button:active, button.on { background: var(--accent); color: var(--bg); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.stop { background: var(--bad); color: var(--bg); border: none; font-weight: 600; }
+  button.main { background: var(--accent); color: var(--bg); border: none; font-weight: 600; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: none; border-radius: 0; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, monospace; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kv { background: var(--hi); border-radius: 10px; padding: 8px 10px; }
+  .kv b { display: block; font: 600 18px ui-monospace, monospace; }
+  .kv span { font-size: 11px; color: var(--muted); }
+  .big b { font-size: 28px; }
+  .wheel { display: grid; grid-template-columns: 70px 1fr 50px; gap: 10px; align-items: center; margin-bottom: 10px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .pad { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; justify-content: center; }
+  .pad button { height: 54px; font-size: 18px; }
+  canvas { width: 100%; height: 200px; background: var(--hi); border-radius: 10px; display: block; }
+  .legend span { margin-right: 14px; font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 3px; margin-right: 5px; vertical-align: middle; }
+  #log { height: 180px; overflow: auto; background: var(--hi); border-radius: 10px; padding: 8px; font: 12px ui-monospace, monospace; white-space: pre-wrap; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  ol.hint { padding-left: 18px; }
+  table { width: 100%; border-collapse: collapse; font: 13px ui-monospace, monospace; margin-top: 10px; }
+  th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-family: system-ui; font-size: 12px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; background: var(--hi); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .toggle small { display: block; color: var(--muted); font-size: 12px; }
+  pre.code { background: var(--hi); border-radius: 10px; padding: 10px; font: 12px ui-monospace, monospace; margin: 8px 0 0; white-space: pre-wrap; }
+  .good { color: var(--ok); } .badc { color: var(--bad); } .warnc { color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>BYAKKO</h1>
+  <div class="seg">
+    <button id="viaUsb" class="on">USB</button>
+    <button id="viaWifi">Wi-Fi</button>
+  </div>
+  <input id="ip" type="text" value="192.168.4.1" size="14" style="display:none">
+  <button id="connect" class="main">Conectar</button>
+  <span class="dot" id="dot"></span>
+  <span id="status" class="muted">Desconectado</span>
+  <span id="latency" class="mono muted" title="Tiempo promedio de respuesta del robot (últimos 20 pedidos)"></span>
+  <span style="flex:1"></span>
+  <button class="stop" id="stopAll">DETENER (espacio)</button>
+</header>
+
+<main>
+  <!-- Cableado -->
+  <section class="card">
+    <h2>1 · Cableado (se prueba en vivo)</h2>
+    <div class="toggle"><div>Invertir motor izquierdo<small>si «Izq +» gira para atrás</small></div><button id="cfgInvI">No</button></div>
+    <div class="toggle"><div>Invertir motor derecho<small>si «Der +» gira para atrás</small></div><button id="cfgInvD">No</button></div>
+    <div class="toggle"><div>Cruzar encoders<small>si al mover la izquierda cuentan los ticks de la derecha</small></div><button id="cfgCrz">No</button></div>
+    <p class="hint">Estos cambios se pierden al reiniciar el Arduino. Cuando funcione bien, copiá esto al principio de <span class="mono">byakko.ino</span>:</p>
+    <pre class="code" id="cfgCode"></pre>
+  </section>
+
+  <!-- Motores -->
+  <section class="card">
+    <h2>2 · Motores sin PID (PWM directo)</h2>
+    <div class="wheel"><span>Izquierda</span><input id="pwmL" type="range" min="-255" max="255" value="0"><span id="pwmLv" class="mono">0</span></div>
+    <div class="wheel"><span>Derecha</span><input id="pwmR" type="range" min="-255" max="255" value="0"><span id="pwmRv" class="mono">0</span></div>
+    <div class="row">
+      <button data-pwm="150,0">Izq +</button>
+      <button data-pwm="-150,0">Izq −</button>
+      <button data-pwm="0,150">Der +</button>
+      <button data-pwm="0,-150">Der −</button>
+      <button data-pwm="150,150">Ambas +</button>
+      <button data-pwm="-150,-150">Ambas −</button>
+      <button data-pwm="0,0">0</button>
+    </div>
+    <p class="row" style="margin:12px 0 0">
+      Ticks desde el último botón: <b class="mono">izq <span id="dTI">0</span></b> · <b class="mono">der <span id="dTD">0</span></b>
+    </p>
+    <ol class="hint">
+      <li><b>Izq +</b> → la rueda <b>izquierda</b> va <b>hacia adelante</b> y suben sólo los ticks <b>izq</b>.</li>
+      <li><b>Der +</b> → la rueda <b>derecha</b> va <b>hacia adelante</b> y suben sólo los ticks <b>der</b>.</li>
+      <li>Si gira la rueda equivocada: los cables de los motores están cruzados en el L298N.</li>
+    </ol>
+  </section>
+
+  <!-- RPM -->
+  <section class="card wide">
+    <h2>3 · Comparar RPM de los motores (encoders)</h2>
+    <div class="row">
+      <span>PWM</span>
+      <input id="rpmPwm" type="range" min="40" max="255" value="150" style="width:200px">
+      <span id="rpmPwmV" class="mono" style="width:34px">150</span>
+      <label class="row" style="gap:4px"><input type="checkbox" id="rpmBack"> hacia atrás</label>
+      <span>medir</span>
+      <select id="rpmSecs"><option>2</option><option selected>3</option><option>5</option><option>10</option></select><span>s</span>
+      <span>ranuras</span>
+      <input id="slots" type="number" value="20" min="1" style="width:64px">
+      <button id="rpmMeasure" class="main">Medir</button>
+      <button id="rpmSweep">Barrido 60 → 255</button>
+      <button id="rpmExport" disabled>Copiar tabla para el código</button>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <div class="kv big"><span>RPM izquierda</span><b id="rpmL">—</b></div>
+      <div class="kv big"><span>RPM derecha</span><b id="rpmR">—</b></div>
+      <div class="kv big"><span>Diferencia</span><b id="rpmDiff">—</b></div>
+    </div>
+    <p class="hint" id="rpmAdvice">Las dos ruedas reciben el mismo PWM sin PID. Ruedas en el aire para medir el motor solo; en el piso para medirlo con carga.</p>
+    <table id="sweepTable" style="display:none">
+      <thead><tr><th>PWM</th><th>RPM izq</th><th>RPM der</th><th>Diferencia</th><th>der / izq</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <canvas id="sweepChart" style="display:none;margin-top:10px"></canvas>
+    <pre class="code" id="tableCode" style="display:none"></pre>
+  </section>
+
+  <!-- Control -->
+  <section class="card">
+    <h2>4 · Control</h2>
+    <div class="row" id="modes">
+      <button data-path="/manual" data-mode="MANUAL">Manual</button>
+      <button data-path="/automatico" data-mode="AVOID">Obstáculos</button>
+      <button data-path="/siguelinea" data-mode="LINE">Línea</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span style="width:70px">Velocidad</span>
+      <input id="speed" type="range" min="10" max="100" value="60" style="flex:1">
+      <span id="speedv" class="mono" style="width:44px">60 %</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span style="width:70px">Control</span>
+      <div class="seg" id="ctrl">
+        <button data-ctrl="0" data-name="PWM">PWM puro</button>
+        <button data-ctrl="1" data-name="PID" class="on">PID</button>
+        <button data-ctrl="2" data-name="TABLA">Tabla</button>
+      </div>
+    </div>
+    <p class="hint">PWM puro: recta sin encoders · PID: corrige con encoders · Tabla: PWM según la tabla de RPM medida, sin encoders.</p>
+    <div class="pad" style="margin-top:14px">
+      <span></span><button data-joy="0,1">▲</button><span></span>
+      <button data-joy="-1,0">◀</button><button data-joy="0,0">■</button><button data-joy="1,0">▶</button>
+      <span></span><button data-joy="0,-1">▼</button><span></span>
+    </div>
+    <p class="hint" style="text-align:center">Mantener apretado · también W A S D o las flechas</p>
+  </section>
+
+  <!-- G-code -->
+  <section class="card">
+    <h2>5 · Movimientos con encoders (G-code)</h2>
+    <div class="row">
+      <button data-g="G1D50F200">Avanzar 5 cm</button>
+      <button data-g="G1D-50F200">Retroceder 5 cm</button>
+      <button data-g="G5A90F150">Rotar 90° ⟲</button>
+      <button data-g="G5A-90F150">Rotar 90° ⟳</button>
+      <button data-g="G2R150A90F200">Curva der</button>
+      <button data-g="G3R150A90F200">Curva izq</button>
+      <button data-g="G1D300/G5A90/G1D300/G5A90/G1D300/G5A90/G1D300/G5A90">Cuadrado 30 cm</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <input id="gcode" type="text" placeholder="G1 D300 F200; G5 A90" style="flex:1" class="mono">
+      <button id="sendG">Enviar</button>
+    </div>
+    <p class="hint">mm, grados y F en mm/s. Varios comandos con «;».</p>
+  </section>
+
+  <!-- Estado -->
+  <section class="card">
+    <h2>6 · Estado</h2>
+    <div class="grid">
+      <div class="kv"><span>Modo</span><b id="tM">—</b></div>
+      <div class="kv"><span>Velocidad %</span><b id="tS">—</b></div>
+      <div class="kv"><span>Control</span><b id="tPID">—</b></div>
+      <div class="kv"><span>Izq pedida / real</span><b id="tL">—</b></div>
+      <div class="kv"><span>Der pedida / real</span><b id="tR">—</b></div>
+      <div class="kv"><span>PWM izq / der</span><b id="tP">—</b></div>
+      <div class="kv"><span>Sonar izq cm</span><b id="sL">—</b></div>
+      <div class="kv"><span>Sonar frente cm</span><b id="sF">—</b></div>
+      <div class="kv"><span>Sonar der cm</span><b id="sR">—</b></div>
+      <div class="kv"><span>IR izq / der</span><b id="tIR">—</b></div>
+      <div class="kv"><span>Ticks izq / der</span><b id="tT">—</b></div>
+      <div class="kv"><span>Último evento</span><b id="tE" style="font-size:14px">—</b></div>
+    </div>
+  </section>
+
+  <!-- Ultrasonidos -->
+  <section class="card wide">
+    <h2>8 · Ultrasonidos</h2>
+    <div class="grid">
+      <div class="kv big"><span>Izquierdo cm</span><b id="usL">—</b></div>
+      <div class="kv big"><span>Frente cm</span><b id="usF">—</b></div>
+      <div class="kv big"><span>Derecho cm</span><b id="usR">—</b></div>
+    </div>
+    <table>
+      <thead><tr><th style="text-align:left">Últimos <span id="usWin">10</span> s</th><th>Mínimo</th><th>Máximo</th><th>Promedio</th><th>Ruido (±)</th><th>Sin eco</th></tr></thead>
+      <tbody id="usStats"></tbody>
+    </table>
+    <div class="legend" style="margin-top:10px">
+      <span><i style="background:var(--accent)"></i>izquierdo</span>
+      <span><i style="background:var(--ok)"></i>frente</span>
+      <span><i style="background:var(--violet)"></i>derecho</span>
+      <span class="muted">línea punteada = inicio y mínimo de la evasión</span>
+    </div>
+    <canvas id="usChart"></canvas>
+    <div class="row" style="margin-top:12px">
+      <span>Calibrar: poné un objeto a</span>
+      <input id="calDist" type="number" value="20" min="2" max="200" style="width:70px"><span>cm del sensor</span>
+      <select id="calSensor"><option value="F">frente</option><option value="L">izquierdo</option><option value="R">derecho</option></select>
+      <button id="calGo">Tomar 20 lecturas</button>
+      <span id="calResult" class="mono"></span>
+    </div>
+    <p class="hint">«Sin eco» = lecturas de 200 cm (nada en rango o el eco se perdió). Mucho ruido o muchos «sin eco» con un objeto cerca = sensor mal apuntado, cable flojo o superficie que no refleja (tela, ángulo).</p>
+  </section>
+
+  <!-- Evasión -->
+  <section class="card wide">
+    <h2>9 · Esquivar obstáculos: ajustes y prueba</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button id="evaDry">Probar en seco (sin mover motores)</button>
+      <button id="evaRun">Probar moviéndose</button>
+      <button id="evaStop">Parar</button>
+      <span id="evaState" class="muted"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px" id="evaParams"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="evaSend" class="main">Enviar al robot</button>
+      <button id="evaReset">Valores por defecto</button>
+      <span class="hint" style="margin:0">Se pierden al reiniciar. Para dejarlos fijos copiá esto en byakko.ino:</span>
+    </div>
+    <pre class="code" id="evaCode"></pre>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px">
+      <div>
+        <h2 style="margin-top:0">Lo que decide el robot ahora</h2>
+        <div class="grid">
+          <div class="kv"><span>Cercanía izq</span><b id="evCI">—</b></div>
+          <div class="kv"><span>Cercanía frente</span><b id="evCF">—</b></div>
+          <div class="kv"><span>Cercanía der</span><b id="evCD">—</b></div>
+          <div class="kv"><span>Giro (+ = der)</span><b id="evGI">—</b></div>
+          <div class="kv"><span>Avance mm/s</span><b id="evAV">—</b></div>
+          <div class="kv"><span>Ruedas izq / der</span><b id="evW">—</b></div>
+        </div>
+        <canvas id="evaTop" style="height:220px;margin-top:10px"></canvas>
+      </div>
+      <div>
+        <h2 style="margin-top:0">Respuesta según la distancia de adelante</h2>
+        <canvas id="evaCurve" style="height:300px"></canvas>
+        <p class="hint">Azul: cercanía (0 a 1). Verde: avance. Naranja: giro. Los puntos son la distancia actual del sensor de adelante.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gráfico -->
+  <section class="card wide">
+    <h2>7 · Velocidad de las ruedas (mm/s, últimos 15 s) · PWM: 255 = borde</h2>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>izq real</span>
+      <span><i style="background:var(--accent);opacity:.4"></i>izq pedida</span>
+      <span><i style="background:var(--violet)"></i>der real</span>
+      <span><i style="background:var(--violet);opacity:.4"></i>der pedida</span>
+      <span><i style="background:var(--warn)"></i>PWM izq</span>
+      <span><i style="background:var(--bad)"></i>PWM der</span>
+    </div>
+    <canvas id="chart"></canvas>
+    <p class="hint">Si «real» se queda en 0 mientras la rueda gira, ese encoder no cuenta y el PID sube el PWM al máximo.</p>
+  </section>
+
+  <section class="card wide">
+    <h2>Registro</h2>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ======================= Conexión (USB o Wi-Fi) =======================
+let via = "usb";
+let connected = false;
+let port = null, writer = null, lineWaiter = null;
+let base = "";
+let busy = false;
+const queue = [];
+let tel = {};
+let pollTimer = null;
+let tickZero = { TI: 0, TD: 0 };
+const history = [];
+
+function log(text) {
+  $("log").textContent = new Date().toLocaleTimeString() + "  " + text + "\n" + $("log").textContent.slice(0, 8000);
+}
+
+function setVia(v) {
+  if (connected) return;
+  via = v;
+  $("viaUsb").classList.toggle("on", v === "usb");
+  $("viaWifi").classList.toggle("on", v === "wifi");
+  $("ip").style.display = v === "wifi" ? "" : "none";
+}
+$("viaUsb").onclick = () => setVia("usb");
+$("viaWifi").onclick = () => setVia("wifi");
+
+// --- USB (Web Serial: Chrome / Edge / Chromium) ---
+async function openUsb() {
+  if (!("serial" in navigator)) {
+    alert("Este navegador no tiene acceso al USB. Abrí el dashboard en Chrome, Edge o Chromium.");
+    return false;
+  }
+  port = await navigator.serial.requestPort();
+  await port.open({ baudRate: 9600 });
+  writer = port.writable.getWriter();
+  readUsb();
+  return true;
+}
+
+async function readUsb() {
+  const reader = port.readable.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line || line.startsWith("Peticion recibida")) continue;
+        if (lineWaiter) { const w = lineWaiter; lineWaiter = null; w(line); }
+        else log("robot: " + line);
+      }
+    }
+  } catch (e) {
+    log("USB cerrado: " + e.message);
+  }
+  if (connected) disconnect();
+}
+
+function usbRequest(path) {
+  return new Promise(async (resolve, reject) => {
+    const t = setTimeout(() => { lineWaiter = null; reject(new Error("sin respuesta")); }, 1200);
+    lineWaiter = (line) => { clearTimeout(t); resolve(line); };
+    await writer.write(new TextEncoder().encode(path + "\n"));
+  });
+}
+
+// --- Wi-Fi (HTTP) ---
+async function wifiRequest(path) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 1500);
+  const r = await fetch(base + path, { signal: ctrl.signal, cache: "no-store" });
+  clearTimeout(t);
+  return (await r.text()).trim();
+}
+
+// El robot atiende de a un pedido: van en fila, uno por vez
+function request(path, quiet) {
+  return new Promise((resolve) => {
+    if (!connected) return resolve(null);
+    queue.push({ path, quiet, resolve });
+    pump();
+  });
+}
+
+async function pump() {
+  if (busy || queue.length === 0) return;
+  busy = true;
+  const { path, quiet, resolve } = queue.shift();
+  let body = null;
+  const t0 = performance.now();
+  try {
+    body = via === "usb" ? await usbRequest(path) : await wifiRequest(path);
+    setOnline(true);
+    noteLatency(performance.now() - t0);
+    if (body.startsWith("TEL ")) onTelemetry(body);
+    else if (body.startsWith("evasion")) readEvaReply(body);
+    if (!body.startsWith("TEL ") && !quiet) log(path + "  →  " + body);
+  } catch (e) {
+    setOnline(false);
+    if (!quiet) log(path + "  →  sin respuesta");
+  }
+  busy = false;
+  resolve(body);
+  pump();
+}
+const send = (path, quiet) => { request(path, quiet); };
+
+// Mide cuánto tarda el robot en responder (para ver si la conexión anda lenta)
+const lat = [];
+function noteLatency(ms) {
+  lat.push(ms);
+  if (lat.length > 20) lat.shift();
+  const avg = lat.reduce((a, b) => a + b, 0) / lat.length;
+  const el = $("latency");
+  el.textContent = Math.round(avg) + " ms · " + (1000 / avg).toFixed(1) + " pedidos/s";
+  el.className = "mono " + (avg < 60 ? "good" : avg < 150 ? "warnc" : "badc");
+}
+
+function setOnline(ok) {
+  $("dot").className = "dot " + (ok ? "ok" : "bad");
+  $("status").textContent = ok ? "Conectado por " + (via === "usb" ? "USB" : "Wi-Fi") : "Sin respuesta";
+}
+
+async function connect() {
+  try {
+    if (via === "usb") {
+      if (!(await openUsb())) return;
+    } else {
+      base = "http://" + $("ip").value.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    }
+  } catch (e) {
+    log("no se pudo abrir: " + e.message);
+    return;
+  }
+  connected = true;
+  $("connect").textContent = "Desconectar";
+  $("connect").classList.remove("main");
+  log("conectado por " + via);
+  if (via === "usb") await wait(300);
+  send("/vel?v=" + $("speed").value);
+  pollTimer = setInterval(() => { if (!busy && queue.length === 0) send("/estado", true); }, via === "usb" ? 150 : 300);
+  send("/evasion", true);
+}
+
+async function disconnect() {
+  clearInterval(pollTimer);
+  if (connected) await request("/stop", true);
+  connected = false;
+  queue.splice(0).forEach((q) => q.resolve(null));
+  try { if (writer) { writer.releaseLock(); writer = null; } } catch (e) {}
+  try { if (port) { await port.close(); } } catch (e) {}
+  port = null;
+  $("connect").textContent = "Conectar";
+  $("connect").classList.add("main");
+  $("dot").className = "dot"; $("status").textContent = "Desconectado";
+}
+$("connect").onclick = () => (connected ? disconnect() : connect());
+
+// ======================= Telemetría =======================
+function parseTel(line) {
+  const t = {};
+  line.slice(4).split(" ").forEach((p) => {
+    const i = p.indexOf("=");
+    if (i > 0) t[p.slice(0, i)] = p.slice(i + 1);
+  });
+  return t;
+}
+
+function onTelemetry(line) {
+  const t = parseTel(line);
+  if (t.E && t.E !== tel.E && t.E !== "-") log("evento: " + t.E);
+  tel = t;
+  const n = (k) => Number(t[k] || 0);
+  $("tM").textContent = t.M || "—";
+  $("tS").textContent = t.S || "—";
+  $("tPID").textContent = t.CTRL || "—";
+  document.querySelectorAll("#ctrl button").forEach((b) => b.classList.toggle("on", b.dataset.name === t.CTRL));
+  $("tL").textContent = n("DL") + " / " + n("VL");
+  $("tR").textContent = n("DR") + " / " + n("VR");
+  $("tP").textContent = n("PL") + " / " + n("PR");
+  $("sL").textContent = Math.round(n("L") / 10);
+  $("sF").textContent = Math.round(n("F") / 10);
+  $("sR").textContent = Math.round(n("R") / 10);
+  $("tIR").textContent = (n("IL") / 1000).toFixed(2) + " / " + (n("IR") / 1000).toFixed(2);
+  $("tT").textContent = n("TI") + " / " + n("TD");
+  $("tE").textContent = t.E || "—";
+  $("dTI").textContent = n("TI") - tickZero.TI;
+  $("dTD").textContent = n("TD") - tickZero.TD;
+  document.querySelectorAll("#modes button").forEach((b) => b.classList.toggle("on", b.dataset.mode === t.M));
+  const yes = (v) => v === "1" || v === "true";
+  showConfig(yes(t.INVI), yes(t.INVD), yes(t.CRZ));
+  history.push({ at: Date.now(), VL: n("VL"), VR: n("VR"), DL: n("DL"), DR: n("DR"), PL: n("PL"), PR: n("PR") });
+  while (history.length && history[0].at < Date.now() - 15000) history.shift();
+  drawSpeeds();
+  sonarUpdate(t);
+  evaUpdate(t);
+}
+
+// ======================= Cableado =======================
+let cfg = { invI: false, invD: false, crz: false };
+function showConfig(invI, invD, crz) {
+  cfg = { invI, invD, crz };
+  [["cfgInvI", invI], ["cfgInvD", invD], ["cfgCrz", crz]].forEach(([id, on]) => {
+    $(id).textContent = on ? "Sí" : "No";
+    $(id).classList.toggle("on", on);
+  });
+  $("cfgCode").textContent =
+    "bool invertir_izq = " + invI + ";\nbool invertir_der = " + invD + ";\nbool cruzar_encoders = " + crz + ";";
+}
+showConfig(false, false, false);
+$("cfgInvI").onclick = () => send("/config?inv_izq=" + (cfg.invI ? 0 : 1));
+$("cfgInvD").onclick = () => send("/config?inv_der=" + (cfg.invD ? 0 : 1));
+$("cfgCrz").onclick = () => send("/config?cruzar=" + (cfg.crz ? 0 : 1));
+
+// ======================= Motores sin PID =======================
+function sendPwm() {
+  $("pwmLv").textContent = $("pwmL").value;
+  $("pwmRv").textContent = $("pwmR").value;
+  send("/pwm?izq=" + $("pwmL").value + "&der=" + $("pwmR").value);
+}
+$("pwmL").oninput = () => { $("pwmLv").textContent = $("pwmL").value; };
+$("pwmR").oninput = () => { $("pwmRv").textContent = $("pwmR").value; };
+$("pwmL").onchange = sendPwm;
+$("pwmR").onchange = sendPwm;
+document.querySelectorAll("[data-pwm]").forEach((b) => b.onclick = () => {
+  const [l, r] = b.dataset.pwm.split(",");
+  $("pwmL").value = l; $("pwmR").value = r;
+  tickZero = { TI: Number(tel.TI || 0), TD: Number(tel.TD || 0) };
+  sendPwm();
+});
+
+// ======================= RPM =======================
+let measuring = false;
+$("rpmPwm").oninput = () => { $("rpmPwmV").textContent = $("rpmPwm").value; };
+
+async function readTicks() {
+  const body = await request("/estado", true);
+  if (!body || !body.startsWith("TEL ")) throw new Error("sin estado");
+  const t = parseTel(body);
+  return { at: performance.now(), TI: Number(t.TI), TD: Number(t.TD) };
+}
+
+// Mismo PWM a las dos ruedas, espera que se estabilicen y cuenta ticks
+async function measureAt(pwm, secs) {
+  const p = $("rpmBack").checked ? -pwm : pwm;
+  await request("/pwm?izq=" + p + "&der=" + p, true);
+  await wait(1000);
+  const a = await readTicks();
+  await wait(secs * 1000);
+  const b = await readTicks();
+  const minutes = (b.at - a.at) / 60000;
+  const slots = Number($("slots").value) || 20;
+  return {
+    pwm,
+    left: Math.abs(b.TI - a.TI) / slots / minutes,
+    right: Math.abs(b.TD - a.TD) / slots / minutes,
+  };
+}
+
+function diffText(l, r) {
+  if (l === 0 && r === 0) return "—";
+  const d = (r - l) / Math.max(l, r) * 100;
+  return (d > 0 ? "+" : "") + d.toFixed(1) + " %";
+}
+
+function showResult(res) {
+  $("rpmL").textContent = res.left.toFixed(0);
+  $("rpmR").textContent = res.right.toFixed(0);
+  $("rpmDiff").textContent = diffText(res.left, res.right);
+  const d = Math.abs(res.right - res.left) / Math.max(res.left, res.right, 1) * 100;
+  $("rpmDiff").className = d < 5 ? "good" : d < 15 ? "warnc" : "badc";
+  let advice;
+  if (res.left === 0 && res.right === 0) advice = "Ninguna rueda contó ticks: ¿están prendidas las baterías? ¿giran las ruedas?";
+  else if (res.left === 0) advice = "La rueda izquierda no contó ticks: o no gira, o su encoder no cuenta, o los encoders están cruzados.";
+  else if (res.right === 0) advice = "La rueda derecha no contó ticks: o no gira, o su encoder no cuenta, o los encoders están cruzados.";
+  else {
+    const slow = res.left < res.right ? "izquierda" : "derecha";
+    advice = "La " + slow + " es " + d.toFixed(1) + " % más lenta. " +
+      (d < 5 ? "Diferencia chica: el PID la corrige sin problema." : "El PID la compensa, pero conviene revisar ruedas/rozamiento o el PWM_MINIMO.");
+  }
+  $("rpmAdvice").textContent = advice;
+}
+
+function setMeasuring(on) {
+  measuring = on;
+  $("rpmMeasure").disabled = on;
+  $("rpmSweep").disabled = on;
+}
+
+$("rpmMeasure").onclick = async () => {
+  if (!connected || measuring) return;
+  setMeasuring(true);
+  try {
+    log("midiendo RPM con PWM " + $("rpmPwm").value + "…");
+    const res = await measureAt(Number($("rpmPwm").value), Number($("rpmSecs").value));
+    showResult(res);
+    log("RPM izq " + res.left.toFixed(0) + " · der " + res.right.toFixed(0));
+  } catch (e) { log("medición cancelada: " + e.message); }
+  await request("/pwm?izq=0&der=0", true);
+  setMeasuring(false);
+};
+
+let sweep = [];
+$("rpmSweep").onclick = async () => {
+  if (!connected || measuring) return;
+  setMeasuring(true);
+  sweep = [];
+  const tbody = $("sweepTable").querySelector("tbody");
+  tbody.innerHTML = "";
+  $("sweepTable").style.display = "";
+  $("sweepChart").style.display = "";
+  try {
+    for (let pwm = 60; pwm <= 255; pwm += 15) {
+      if (!measuring) break;
+      const v = Math.min(pwm, 255);
+      log("barrido: PWM " + v);
+      const res = await measureAt(v, 1.5);
+      sweep.push(res);
+      const ratio = res.left > 0 ? (res.right / res.left).toFixed(2) : "—";
+      tbody.insertAdjacentHTML("beforeend",
+        "<tr><td>" + v + "</td><td>" + res.left.toFixed(0) + "</td><td>" + res.right.toFixed(0) +
+        "</td><td>" + diffText(res.left, res.right) + "</td><td>" + ratio + "</td></tr>");
+      showResult(res);
+      drawSweep();
+    }
+    $("rpmExport").disabled = sweep.length === 0;
+    const first = sweep.find((r) => r.left > 0 && r.right > 0);
+    if (first) log("las dos ruedas giran desde PWM " + first.pwm + " → probá PWM_MINIMO ≈ " + first.pwm);
+  } catch (e) { log("barrido cancelado: " + e.message); }
+  await request("/pwm?izq=0&der=0", true);
+  setMeasuring(false);
+};
+
+// Arma las 4 lineas de la tabla para pegar en byakko.ino
+function tableText() {
+  const pad = (v) => String(Math.round(v)).padStart(3, " ");
+  return "const int TABLA_N = " + sweep.length + ";\n" +
+    "const int TABLA_PWM[TABLA_N]     = {" + sweep.map((r) => pad(r.pwm)).join(", ") + "};\n" +
+    "const int TABLA_RPM_IZQ[TABLA_N] = {" + sweep.map((r) => pad(r.left)).join(", ") + "};\n" +
+    "const int TABLA_RPM_DER[TABLA_N] = {" + sweep.map((r) => pad(r.right)).join(", ") + "};";
+}
+$("rpmExport").onclick = async () => {
+  const text = tableText();
+  $("tableCode").style.display = "";
+  $("tableCode").textContent = text;
+  try { await navigator.clipboard.writeText(text); log("tabla copiada: pegala en byakko.ino en lugar de la que hay"); }
+  catch (e) { log("seleccioná y copiá la tabla de abajo"); }
+};
+
+function setupCanvas(c) {
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = w * devicePixelRatio; c.height = h * devicePixelRatio;
+  const g = c.getContext("2d");
+  g.scale(devicePixelRatio, devicePixelRatio);
+  return { g, w, h };
+}
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+function drawSweep() {
+  if (!sweep.length) return;
+  const { g, w, h } = setupCanvas($("sweepChart"));
+  const maxR = Math.max(10, ...sweep.map((r) => Math.max(r.left, r.right))) * 1.1;
+  const x = (pwm) => 36 + (pwm - 40) / (255 - 40) * (w - 46);
+  const y = (rpm) => h - 22 - rpm / maxR * (h - 34);
+  g.fillStyle = css("--muted"); g.font = "11px ui-monospace, monospace";
+  g.fillText(Math.round(maxR) + " rpm", 4, 12);
+  [60, 120, 180, 240].forEach((p) => g.fillText(p, x(p) - 8, h - 6));
+  [["left", css("--accent")], ["right", css("--violet")]].forEach(([k, col]) => {
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 2; g.beginPath();
+    sweep.forEach((r, i) => (i ? g.lineTo(x(r.pwm), y(r[k])) : g.moveTo(x(r.pwm), y(r[k]))));
+    g.stroke();
+    sweep.forEach((r) => { g.beginPath(); g.arc(x(r.pwm), y(r[k]), 3, 0, 7); g.fill(); });
+  });
+  g.fillStyle = css("--accent"); g.fillText("● izq", w - 90, 12);
+  g.fillStyle = css("--violet"); g.fillText("● der", w - 45, 12);
+}
+
+// ======================= Gráfico de velocidad =======================
+function drawSpeeds() {
+  const { g, w, h } = setupCanvas($("chart"));
+  const max = 400, mid = h / 2;
+  g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
+  g.fillStyle = css("--muted"); g.font = "11px ui-monospace, monospace";
+  g.fillText("+" + max, 4, 12); g.fillText("-" + max, 4, h - 4);
+  const now = Date.now();
+  const x = (at) => w - (now - at) / 15000 * w;
+  const y = (v) => mid - Math.max(-max, Math.min(max, v)) / max * (mid - 6);
+  function line(key, color, alpha, scale) {
+    g.strokeStyle = color; g.globalAlpha = alpha; g.lineWidth = 2; g.beginPath();
+    history.forEach((p, i) => { const v = p[key] * (scale || 1); i ? g.lineTo(x(p.at), y(v)) : g.moveTo(x(p.at), y(v)); });
+    g.stroke(); g.globalAlpha = 1;
+  }
+  line("DL", css("--accent"), 0.4); line("VL", css("--accent"), 1);
+  line("DR", css("--violet"), 0.4); line("VR", css("--violet"), 1);
+  line("PL", css("--warn"), 0.8, max / 255); line("PR", css("--bad"), 0.8, max / 255);
+}
+
+// ======================= Ultrasonidos =======================
+const SONAR_MAX = 200;
+const sonarHist = [];   // {at, L, F, R} en cm
+const SONAR_WIN = 10000;
+
+function sonarUpdate(t) {
+  const cm = (k) => Math.round(Number(t[k] || 0) / 10);
+  const p = { at: Date.now(), L: cm("L"), F: cm("F"), R: cm("R") };
+  sonarHist.push(p);
+  while (sonarHist.length && sonarHist[0].at < Date.now() - 30000) sonarHist.shift();
+  [["usL", p.L], ["usF", p.F], ["usR", p.R]].forEach(([id, v]) => {
+    $(id).textContent = v >= SONAR_MAX ? "—" : v;
+    $(id).style.color = v < evaP.minimo ? css("--bad") : v < evaP.inicio ? css("--warn") : "";
+  });
+  if (calibrating) calibrating.push(p[$("calSensor").value]);
+  const recent = sonarHist.filter((q) => q.at > Date.now() - SONAR_WIN);
+  $("usStats").innerHTML = [["Izquierdo", "L"], ["Frente", "F"], ["Derecho", "R"]].map(([name, k]) => {
+    const all = recent.map((q) => q[k]);
+    const ok = all.filter((v) => v < SONAR_MAX);
+    if (!ok.length) return "<tr><td style='text-align:left'>" + name + "</td><td colspan=4 class='muted'>sin lecturas en rango</td><td>" + all.length + "/" + all.length + "</td></tr>";
+    const avg = ok.reduce((a, b) => a + b, 0) / ok.length;
+    const sd = Math.sqrt(ok.reduce((a, b) => a + (b - avg) ** 2, 0) / ok.length);
+    const miss = all.length - ok.length;
+    return "<tr><td style='text-align:left'>" + name + "</td><td>" + Math.min(...ok) + "</td><td>" + Math.max(...ok) +
+      "</td><td>" + avg.toFixed(1) + "</td><td class='" + (sd < 1 ? "good" : sd < 3 ? "warnc" : "badc") + "'>" + sd.toFixed(1) +
+      "</td><td class='" + (miss ? "warnc" : "") + "'>" + miss + "/" + all.length + "</td></tr>";
+  }).join("");
+  drawSonar();
+}
+
+function drawSonar() {
+  const { g, w, h } = setupCanvas($("usChart"));
+  const max = 100;   // escala hasta 1 m
+  const now = Date.now();
+  const x = (at) => w - (now - at) / 30000 * w;
+  const y = (cm) => h - 6 - Math.min(cm, max) / max * (h - 18);
+  g.fillStyle = css("--muted"); g.font = "11px ui-monospace, monospace";
+  [0, 25, 50, 75, 100].forEach((c) => { g.fillText(c + (c === 100 ? "+ cm" : ""), 4, y(c) + 4); });
+  g.setLineDash([4, 4]); g.strokeStyle = css("--warn"); g.lineWidth = 1;
+  [evaP.inicio, evaP.minimo].forEach((c) => { g.beginPath(); g.moveTo(30, y(c)); g.lineTo(w, y(c)); g.stroke(); });
+  g.setLineDash([]);
+  [["L", css("--accent")], ["F", css("--ok")], ["R", css("--violet")]].forEach(([k, col]) => {
+    g.strokeStyle = col; g.lineWidth = 2; g.beginPath();
+    sonarHist.forEach((p, i) => (i ? g.lineTo(x(p.at), y(p[k])) : g.moveTo(x(p.at), y(p[k]))));
+    g.stroke();
+  });
+}
+
+let calibrating = null;
+$("calGo").onclick = async () => {
+  if (!connected || calibrating) return;
+  calibrating = [];
+  $("calResult").textContent = "midiendo…";
+  while (calibrating.length < 20 && connected) await wait(100);
+  const ok = calibrating.filter((v) => v < SONAR_MAX);
+  calibrating = null;
+  const real = Number($("calDist").value);
+  if (!ok.length) { $("calResult").textContent = "sin eco en las 20 lecturas"; return; }
+  const avg = ok.reduce((a, b) => a + b, 0) / ok.length;
+  const err = avg - real;
+  $("calResult").innerHTML = "promedio " + avg.toFixed(1) + " cm · error <span class='" +
+    (Math.abs(err) <= 1 ? "good" : Math.abs(err) <= 3 ? "warnc" : "badc") + "'>" + (err > 0 ? "+" : "") + err.toFixed(1) +
+    " cm</span> · sin eco " + (20 - ok.length) + "/20";
+  log("calibración " + $("calSensor").selectedOptions[0].text + " a " + real + " cm → " + avg.toFixed(1) + " cm");
+};
+
+// ======================= Evasión =======================
+const EVA_DEFAULT = { inicio: 20, minimo: 5, kf: 1.0, kl: 0.7, vel: 200, giro: 220, freno: 1.6, retro: 100 };
+const EVA_INFO = {
+  inicio: ["Distancia de inicio", "cm", 5, 80, 1, "A esta distancia empieza a corregir, suave."],
+  minimo: ["Distancia mínima", "cm", 2, 40, 1, "A esta distancia corrige al máximo."],
+  kf: ["Fuerza del giro por el frente", "", 0, 2, 0.05, "Cuánto gira para esquivar lo de adelante."],
+  kl: ["Fuerza de los costados", "", 0, 2, 0.05, "Cuánto lo alejan las paredes de los lados."],
+  vel: ["Velocidad libre", "mm/s", 50, 400, 10, "Avance cuando no hay nada cerca."],
+  giro: ["Velocidad de giro", "mm/s", 50, 400, 10, "Diferencia entre ruedas al girar al máximo."],
+  freno: ["Frenado", "", 0.5, 3, 0.05, "1 = frena hasta 0 al mínimo; más de 1 = retrocede antes."],
+  retro: ["Retroceso máximo", "mm/s", 0, 300, 10, "Velocidad máxima marcha atrás."],
+};
+const EVA_VAR = { inicio: "eva_inicio", minimo: "eva_minimo", kf: "eva_k_frente", kl: "eva_k_lado", vel: "eva_vel", giro: "eva_giro", freno: "eva_freno", retro: "eva_retroceso" };
+let evaP = { ...EVA_DEFAULT };
+let lastTel = {};
+
+Object.entries(EVA_INFO).forEach(([k, [label, unit, min, max, step, help]]) => {
+  $("evaParams").insertAdjacentHTML("beforeend",
+    "<div><div class='row' style='justify-content:space-between'><span>" + label + "</span><span class='mono' id='ev_" + k + "_v'></span></div>" +
+    "<input type='range' id='ev_" + k + "' min='" + min + "' max='" + max + "' step='" + step + "'>" +
+    "<div class='hint' style='margin:0 0 6px'>" + help + "</div></div>");
+  $("ev_" + k).oninput = () => { evaP[k] = Number($("ev_" + k).value); showEva(); };
+});
+
+function showEva() {
+  Object.keys(EVA_INFO).forEach((k) => {
+    $("ev_" + k).value = evaP[k];
+    $("ev_" + k + "_v").textContent = evaP[k] + (EVA_INFO[k][1] ? " " + EVA_INFO[k][1] : "");
+  });
+  $("evaCode").textContent = Object.keys(EVA_VAR).map((k) => "float " + EVA_VAR[k] + " = " + evaP[k] + ";").join("\n");
+  drawEvaCurve();
+  drawSonar();
+}
+
+function evaQuery(extra) {
+  return "/evasion?" + Object.keys(EVA_DEFAULT).map((k) => k + "=" + evaP[k]).join("&") + (extra || "");
+}
+$("evaSend").onclick = () => send(evaQuery());
+$("evaReset").onclick = () => { evaP = { ...EVA_DEFAULT }; showEva(); send(evaQuery()); };
+$("evaDry").onclick = () => { send(evaQuery("&seco=1")); send("/automatico"); };
+$("evaRun").onclick = () => { send(evaQuery("&seco=0")); send("/automatico"); };
+$("evaStop").onclick = () => { send("/evasion?seco=0"); send("/stop"); };
+
+// Misma cuenta que el firmware, para dibujar la curva
+const closeness = (d) => Math.max(0, Math.min(1, (evaP.inicio - d) / (evaP.inicio - evaP.minimo)));
+function evaFor(f, l, r) {
+  const cf = closeness(f), cl = closeness(l), cr = closeness(r);
+  const lado = l > r ? -1 : 1;
+  const giro = Math.max(-1, Math.min(1, evaP.kf * cf * lado + evaP.kl * (cl - cr)));
+  const avance = Math.max(-evaP.retro, evaP.vel * (1 - evaP.freno * cf));
+  return { cf, cl, cr, giro, avance };
+}
+
+function drawEvaCurve() {
+  const { g, w, h } = setupCanvas($("evaCurve"));
+  const maxD = Math.max(40, evaP.inicio * 1.6);
+  const left = 34, bottom = h - 20;
+  const x = (d) => left + d / maxD * (w - left - 8);
+  const yc = (v) => bottom - v * (bottom - 10);                  // 0..1
+  const ya = (v) => bottom - (v + evaP.retro) / (evaP.vel + evaP.retro) * (bottom - 10);
+  g.fillStyle = css("--muted"); g.font = "11px ui-monospace, monospace";
+  for (let d = 0; d <= maxD; d += 10) g.fillText(d, x(d) - 6, h - 5);
+  g.fillText("cm", w - 22, h - 5);
+  g.setLineDash([4, 4]); g.strokeStyle = css("--line");
+  [evaP.minimo, evaP.inicio].forEach((d) => { g.beginPath(); g.moveTo(x(d), 8); g.lineTo(x(d), bottom); g.stroke(); });
+  g.beginPath(); g.moveTo(left, ya(0)); g.lineTo(w, ya(0)); g.stroke();
+  g.setLineDash([]);
+  const curve = (fn, col) => {
+    g.strokeStyle = col; g.lineWidth = 2; g.beginPath();
+    for (let d = 0; d <= maxD; d += 0.5) { const v = fn(d); d ? g.lineTo(x(d), v) : g.moveTo(x(d), v); }
+    g.stroke();
+  };
+  // con los costados libres: muestra sólo el efecto del frente
+  curve((d) => yc(evaFor(d, 200, 200).cf), css("--accent"));
+  curve((d) => ya(evaFor(d, 200, 200).avance), css("--ok"));
+  curve((d) => yc(Math.abs(evaFor(d, 200, 200).giro)), css("--warn"));
+  const f = Number(lastTel.F || 0) / 10;
+  if (f > 0 && f < maxD) {
+    const now = evaFor(f, 200, 200);
+    [[yc(now.cf), "--accent"], [ya(now.avance), "--ok"], [yc(Math.abs(now.giro)), "--warn"]].forEach(([yy, c]) => {
+      g.fillStyle = css(c); g.beginPath(); g.arc(x(f), yy, 5, 0, 7); g.fill();
+    });
+  }
+}
+
+// Vista desde arriba: robot, distancias medidas y la flecha de lo que va a hacer
+function drawEvaTop(l, f, r, giro, avance) {
+  const { g, w, h } = setupCanvas($("evaTop"));
+  const cx = w / 2, cy = h - 40, scale = Math.min(w / 2 - 20, h - 60) / Math.max(40, evaP.inicio * 1.5);
+  g.strokeStyle = css("--line"); g.setLineDash([4, 4]);
+  [evaP.inicio, evaP.minimo].forEach((d) => { g.beginPath(); g.arc(cx, cy, d * scale, Math.PI, 2 * Math.PI); g.stroke(); });
+  g.setLineDash([]);
+  const ray = (ang, d, col) => {
+    const dd = Math.min(d, evaP.inicio * 1.5);
+    const ex = cx + Math.cos(ang) * dd * scale, ey = cy - Math.sin(ang) * dd * scale;
+    g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.moveTo(cx, cy); g.lineTo(ex, ey); g.stroke();
+    if (d < SONAR_MAX) { g.fillStyle = col; g.fillRect(ex - 10, ey - 2, 20, 4); }
+  };
+  ray(Math.PI, l, css("--accent"));
+  ray(Math.PI / 2, f, css("--ok"));
+  ray(0, r, css("--violet"));
+  g.fillStyle = css("--hi"); g.strokeStyle = css("--ink"); g.lineWidth = 1.5;
+  g.beginPath(); g.roundRect(cx - 16, cy - 10, 32, 34, 6); g.fill(); g.stroke();
+  // flecha: largo = avance, inclinación = giro
+  const len = Math.abs(avance) / Math.max(evaP.vel, 1) * 50 + 8;
+  const ang = Math.PI / 2 - giro * Math.PI / 3;
+  const dir = avance >= 0 ? 1 : -1;
+  const ax = cx + Math.cos(ang) * len * dir, ay = cy - Math.sin(ang) * len * dir;
+  g.strokeStyle = css("--warn"); g.fillStyle = css("--warn"); g.lineWidth = 3;
+  g.beginPath(); g.moveTo(cx, cy); g.lineTo(ax, ay); g.stroke();
+  g.beginPath(); g.arc(ax, ay, 4, 0, 7); g.fill();
+}
+
+function evaUpdate(t) {
+  lastTel = t;
+  const n = (k) => Number(t[k] || 0);
+  const inAvoid = t.M === "AVOID";
+  const dry = t.SECO === "1" || t.SECO === "true";
+  $("evaState").textContent = inAvoid ? (dry ? "Probando en seco: los motores no se mueven" : "En marcha") : "Modo " + (t.M || "—") + " (la vista de abajo es una simulación con los sensores)";
+  // Si el robot no está esquivando, se calcula acá con la misma fórmula
+  const sim = evaFor(n("F") / 10, n("L") / 10, n("R") / 10);
+  const cf = inAvoid ? n("CF") / 100 : sim.cf, ci = inAvoid ? n("CI") / 100 : sim.cl, cd = inAvoid ? n("CD") / 100 : sim.cr;
+  const giro = inAvoid ? n("GI") / 100 : sim.giro, avance = inAvoid ? n("AV") : sim.avance;
+  const k = Number(t.S || 100) / 100;
+  $("evCI").textContent = ci.toFixed(2); $("evCF").textContent = cf.toFixed(2); $("evCD").textContent = cd.toFixed(2);
+  $("evGI").textContent = (giro > 0 ? "+" : "") + giro.toFixed(2);
+  $("evAV").textContent = Math.round(avance);
+  $("evW").textContent = Math.round((avance + giro * evaP.giro) * k) + " / " + Math.round((avance - giro * evaP.giro) * k);
+  drawEvaTop(n("L") / 10, n("F") / 10, n("R") / 10, giro, avance);
+  drawEvaCurve();
+}
+
+// Al conectar, leer los valores que tiene el robot
+function readEvaReply(body) {
+  if (!body || !body.startsWith("evasion")) return;
+  body.split(" ").slice(1).forEach((p) => {
+    const [k, v] = p.split("=");
+    if (k in evaP) evaP[k] = Number(v);
+  });
+  showEva();
+}
+showEva();
+
+// ======================= Control =======================
+document.querySelectorAll("[data-path]").forEach((b) => b.onclick = () => send(b.dataset.path));
+$("speed").oninput = () => { $("speedv").textContent = $("speed").value + " %"; };
+$("speed").onchange = () => send("/vel?v=" + $("speed").value);
+document.querySelectorAll("[data-ctrl]").forEach((b) => b.onclick = () => send("/control?m=" + b.dataset.ctrl));
+
+let joy = null, joyTimer = null;
+const joyPath = () => "/?X=" + Math.round(joy[0] * 127) + "&Y=" + Math.round(joy[1] * 127);
+function joyStart(x, y) {
+  joy = [x, y];
+  send(joyPath(), true);
+  clearInterval(joyTimer);
+  // se repite cada 200 ms para que el robot no se frene por falta de mensajes
+  joyTimer = setInterval(() => { if (joy && queue.length === 0) send(joyPath(), true); }, 400);
+}
+function joyStop() {
+  if (!joy) return;
+  joy = null;
+  clearInterval(joyTimer);
+  send("/?X=0&Y=0", true);
+}
+function lightPad(x, y) {
+  document.querySelectorAll("[data-joy]").forEach((b) => {
+    const [bx, by] = b.dataset.joy.split(",").map(Number);
+    const on = (bx !== 0 && bx === x) || (by !== 0 && by === y);
+    b.classList.toggle("on", on);
+  });
+}
+document.querySelectorAll("[data-joy]").forEach((b) => {
+  const [x, y] = b.dataset.joy.split(",").map(Number);
+  b.onpointerdown = (e) => { e.preventDefault(); joyStart(x, y); lightPad(x, y); };
+  b.onpointerup = b.onpointerleave = () => { joyStop(); lightPad(0, 0); };
+});
+
+// Teclado: W A S D o flechas. Se pueden combinar (W + D = adelante a la derecha)
+const keyDir = { w: [0, 1], arrowup: [0, 1], s: [0, -1], arrowdown: [0, -1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] };
+const held = new Set();
+function keysChanged() {
+  let x = 0, y = 0;
+  held.forEach((k) => { x += keyDir[k][0]; y += keyDir[k][1]; });
+  x = Math.max(-1, Math.min(1, x));
+  y = Math.max(-1, Math.min(1, y));
+  lightPad(x, y);
+  if (x === 0 && y === 0) joyStop();
+  else joyStart(x, y);
+}
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" && (e.target.type === "text" || e.target.type === "number")) return;
+  const k = e.key.toLowerCase();
+  if (k === " ") { e.preventDefault(); stopAll(); return; }
+  if (!keyDir[k]) return;
+  e.preventDefault();
+  if (e.target.blur) e.target.blur();   // que el deslizador no se mueva con las flechas
+  if (!held.has(k)) { held.add(k); keysChanged(); }
+});
+document.addEventListener("keyup", (e) => {
+  const k = e.key.toLowerCase();
+  if (held.delete(k)) keysChanged();
+});
+window.addEventListener("blur", () => { held.clear(); keysChanged(); });
+
+function sendGcode(text) {
+  const cmds = text.split(/[;\n,]/).map((c) => c.replace(/\s+/g, "").toUpperCase()).filter(Boolean);
+  if (cmds.length) send("/g/" + cmds.join("/"));
+}
+document.querySelectorAll("[data-g]").forEach((b) => b.onclick = () => sendGcode(b.dataset.g.split("/").join(";")));
+$("sendG").onclick = () => sendGcode($("gcode").value);
+$("gcode").onkeydown = (e) => { if (e.key === "Enter") sendGcode($("gcode").value); };
+
+function stopAll() {
+  measuring = false;
+  queue.splice(0).forEach((q) => q.resolve(null));
+  clearInterval(joyTimer); joy = null; held.clear(); lightPad(0, 0);
+  $("pwmL").value = 0; $("pwmR").value = 0; $("pwmLv").textContent = "0"; $("pwmRv").textContent = "0";
+  send("/stop");
+}
+$("stopAll").onclick = stopAll;
+window.addEventListener("resize", () => { drawSpeeds(); drawSweep(); drawSonar(); drawEvaCurve(); });
+drawSpeeds();
+</script>
+</body>
+</html>

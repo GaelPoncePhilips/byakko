@@ -1,0 +1,14 @@
+# Android
+android/**/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Editor / herramientas
+.claude/
+.vscode/
+.DS_Store
